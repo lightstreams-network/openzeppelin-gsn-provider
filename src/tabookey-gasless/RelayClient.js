@@ -17,7 +17,8 @@ const { appendAddress, toInt, preconditionCodeToDescription, getApprovalData, cr
 const relayHubAbi = require('./IRelayHub');
 const relayRecipientAbi = require('./IRelayRecipient');
 
-const relay_lookup_limit_blocks = 6000;
+// TODO: #7 Need to improve performance when reading logs from more than 1000 blocks. 
+const relay_lookup_limit_blocks = 100;
 abi_decoder.addABI(relayHubAbi);
 
 // default timeout (in ms) for http requests
@@ -77,7 +78,11 @@ class RelayClient {
             txfee: params.txFee || params.txfee || relayClientOptions.txFee || relayClientOptions.txfee,
             gas_limit: params.gas && toInt(params.gas),
             gas_price: params.gasPrice && toInt(params.gasPrice),
-            approveFunction: params.approveFunction || this.config.approveFunction
+            approveFunction: params.approveFunction || this.config.approveFunction,
+            wallet: params.wallet,
+            privateKey: params.privateKey,
+            relayUrl: params.relayUrl,
+            relayAddr: params.relayAddr
         };
         if (relayClientOptions.verbose)
             console.log('RR: ', payload.id, relayOptions);
@@ -339,19 +344,12 @@ class RelayClient {
         
         let blockNow = await this.web3.eth.getBlockNumber();
         let blockFrom = Math.max(1, blockNow - relay_lookup_limit_blocks);
-        let pinger = await this.serverHelper.newActiveRelayPinger(blockFrom, gasPrice);
+        //let pinger = await this.serverHelper.newActiveRelayPinger(blockFrom, gasPrice);
         let errors = [];
-        for (; ;) {
-            let activeRelay = await pinger.nextRelay();
-            if (!activeRelay) {
-                const subErrors = errors.concat(pinger.errors);
-                const error = new Error(`No relayer responded or accepted the transaction out of the ${pinger.pingedRelays} queried:\n${subErrors.map(err => ` ${err}`).join('\n')}`);
-                error.errors = subErrors;
-                throw error
-            }
-            let relayAddress = activeRelay.RelayServerAddress;
-            let relayUrl = activeRelay.relayUrl;
-            let txfee = parseInt(options.txfee || activeRelay.transactionFee);
+
+            let relayAddress = options.relayAddr;
+            let relayUrl = options.relayUrl;
+            let txfee = parseInt(options.txfee);
 
             let hash, signature;
             try {
@@ -367,11 +365,10 @@ class RelayClient {
                         relayHub._address,
                         relayAddress);
 
-                if (typeof self.ephemeralKeypair === "object" && self.ephemeralKeypair !== null) {
-                    signature = await getTransactionSignatureWithKey(self.ephemeralKeypair.privateKey, hash);
-                } else {
-                    signature = await getTransactionSignature(this.web3, options.from, hash);
-                }
+                let wallet = options.wallet;    
+                let privateKey = options.privateKey;     
+                signature = await getTransactionSignatureWithKey(privateKey, hash); 
+
             } catch (err) {
                 throw new Error(`Error generating signature for transaction: ${err.message || err}`);
             }
@@ -445,7 +442,6 @@ class RelayClient {
                     console.log("relayTransaction:", ("" + error).replace(/ (\w+:)/g, "\n$1 "))
                 }
             }
-        }
     }
 
     postAuditTransaction(signedTx, relayUrl) {

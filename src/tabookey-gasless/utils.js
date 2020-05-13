@@ -91,8 +91,7 @@ module.exports = {
         }
         else
             signed = hash
-        let keyHex = "0x" + Buffer.from(privKey).toString('hex')
-        const sig_ = EthCrypto.sign(keyHex, signed)
+        const sig_ = EthCrypto.sign(privKey, signed)
         let signature = ethUtils.fromRpcSig(sig_);
         let sig = web3Utils.bytesToHex(signature.r) + removeHexPrefix(web3Utils.bytesToHex(signature.s)) + removeHexPrefix(web3Utils.toHex(signature.v));
         return sig

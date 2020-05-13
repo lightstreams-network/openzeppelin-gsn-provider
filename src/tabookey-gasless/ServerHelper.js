@@ -36,7 +36,7 @@ class ActiveRelayPinger {
                     console.log("nextRelay: find fastest relay from: " + JSON.stringify(slice))
                 }
                 firstRelayToRespond = await this.raceToSuccess(
-                    slice.map(relay => this.getRelayAddressPing(relay.relayUrl, relay.transactionFee, this.gasPrice))
+                    slice.map(relay => this.getRelayAddressPing(process.env.RELAY_URL || relay.relayUrl, relay.transactionFee, this.gasPrice))
                 );
                 if (this.verbose){
                     console.log("race finished with a champion: " + firstRelayToRespond.relayUrl)
